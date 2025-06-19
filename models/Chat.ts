@@ -17,6 +17,7 @@ const ChatSchema = new mongoose.Schema(
   }
 );
 
-const Chat = mongoose.model.Chat || mongoose.model("Chat", ChatSchema)
+// Check if model already exists before creating it
+const Chat = mongoose.models.Chat || mongoose.model("Chat", ChatSchema);
 
-export default Chat
+export default Chat;

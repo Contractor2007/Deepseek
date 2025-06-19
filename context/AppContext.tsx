@@ -66,7 +66,7 @@ export const AppContextProvider =({children})=>{
 
     useEffect(()=>{
            if(user){
-            fetchUsersChat
+            fetchUsersChat()
            }
     },[user])
 
