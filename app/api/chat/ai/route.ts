@@ -1,58 +1,58 @@
 export const maxDuration = 60;
+import conexport const maxDuration = 60;
 import connectDB from "@/config/db";
 import Chat from "@/models/Chat";
 import { getAuth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-//Initialize OpenAi client with deepseek api key and base url
-const opemai = new OpenAI({
-  baseURL: "https://api.deepseek.com",
-  apiKey: process.env.DEEPSEEK_API_KEY,
-});
+// Initialize Google Gemini client
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export async function POST(req) {
   try {
-    const { userId } = getAuth(req);
+      const { userId } = getAuth(req);
 
-    //Extract chatId and prompt from the requesr body
-    const { chatId, prompt } = await req.json();
+          //Extract chatId and prompt from the request body
+              const { chatId, prompt } = await req.json();
 
-    if (!userId) {
-      return NextResponse.json({
-        success: false,
-        message: "User not authenticated",
-      });
-    }
+                  if (!userId) {
+                        return NextResponse.json({
+                                success: false,
+                                        message: "User not authenticated",
+                                              });
+                                                  }
 
-    //Find Chat doc in the db based on userid and chatId
-    await connectDB();
-    const data = await Chat.findOne({ userId, _id: chatId });
+                                                      //Find Chat doc in the db based on userid and chatId
+                                                          await connectDB();
+                                                              const data = await Chat.findOne({ userId, _id: chatId });
 
-    //Create a user message prompt
-    const userPrompt = {
-      role: "user",
-      content: prompt,
-      timestamp: Date.now(),
-    };
+                                                                  //Create a user message prompt
+                                                                      const userPrompt = {
+                                                                            role: "user",
+                                                                                  content: prompt,
+                                                                                        timestamp: Date.now(),
+                                                                                            };
 
-    data.messages.push(userPrompt);
+                                                                                                data.messages.push(userPrompt);
 
-    //Call the Deepseek api to get chat completion
+                                                                                                    // Call the Google Gemini API to get chat completion
+                                                                                                        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+                                                                                                            const result = await model.generateContent(prompt);
+                                                                                                                const response = await result.response;
+                                                                                                                    const text = response.text();
 
-    const completion = await OpenAI.chat.completion.create({
-      messages: [{ role: "user", content: prompt }],
-      model: "deepseek-chat",
-      store: true,
-    });
+                                                                                                                        const message = {
+                                                                                                                              role: "assistant",
+                                                                                                                                    content: text,
+                                                                                                                                          timestamp: Date.now()
+                                                                                                                                              };
+                                                                                                                                                  
+                                                                                                                                                      data.messages.push(message);
+                                                                                                                                                          data.save();
 
-    const message = completion.choices[0].message;
-    message.timestamp = Date.now();
-    data.messages.push(message);
-    data.save();
-
-    return NextResponse.json({ sucess: true, data: message });
-  } catch (error) {
-    return NextResponse.json({ sucess: false, error: error.message });
-  }
-}
+                                                                                                                                                              return NextResponse.json({ success: true, data: message });
+                                                                                                                                                                } catch (error) {
+                                                                                                                                                                    return NextResponse.json({ success: false, error: error.message });
+                                                                                                                                                                      }
+                                                                                                                                                                      }
