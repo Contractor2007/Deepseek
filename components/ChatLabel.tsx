@@ -7,7 +7,7 @@ import toast from 'react-hot-toast'
 
 const ChatLabel = ({openMenu,setOpenMenu,id,name}) => {
 
-const {fetchUsersChats,chats,setSelectedChats} = useAppContext()
+const {fetchUsersChat,chats,setSelectedChats} = useAppContext()
 
 const selectChat = ()=>{
   const chatData = chats.find(chat=>chat._id===id)
@@ -21,7 +21,7 @@ const renameHandler =async()=>{
     if(!newName) return
     const {data} = await axios.post('/api/chat/rename',{chatId: id,name:newName})
     if(data.success){
-      fetchUsersChats()
+      fetchUsersChat()
       setOpenMenu({id:0,open:false})
       toast.success(data.message)
     }else{
@@ -39,7 +39,7 @@ const deleteHandler = async()=>{
     if(!confirm) return 
     const {data} = await axios.post("/api/chat/delete",{chatId:id})
     if(data.success){
-      fetchUsersChats()
+      fetchUsersChat()
       setOpenMenu({id:0,open:false})
       toast.success(data.message)
     }else{
