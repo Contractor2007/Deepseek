@@ -1,4 +1,4 @@
-export const maxDuration = 60;
+// pages/api/chat/ai.ts (or wherever your API is)
 
 import connectDB from "@/config/db";
 import Chat from "@/models/Chat";
@@ -7,16 +7,22 @@ import { NextResponse } from "next/server";
 import ModelClient, { isUnexpected } from "@azure-rest/ai-inference";
 import { AzureKeyCredential } from "@azure/core-auth";
 
-// Azure/GitHub Model config
 const token = process.env["GITHUB_TOKEN"];
 const endpoint = "https://models.github.ai/inference";
-const model = "openai/gpt-4.1";
+
+// Optional: Allowed models whitelist
+const allowedModels = [
+  "xai/grok-3",
+  "openai/gpt-4.1",
+  "meta/Llama-4-Scout-17B-16E-Instruct",
+  "microsoft/Phi-4",
+  "mistral-ai/mistral-medium-2505",
+];
 
 export async function POST(req: Request) {
   try {
     const { userId } = getAuth(req);
-
-    const { chatId, prompt } = await req.json();
+    const { chatId, prompt, model } = await req.json();
 
     if (!userId) {
       return NextResponse.json({
@@ -25,46 +31,59 @@ export async function POST(req: Request) {
       });
     }
 
+    // Validate model selection or fallback to default
+    const selectedModel = allowedModels.includes(model) ? model : "openai/gpt-4.1";
+
     await connectDB();
     const data = await Chat.findOne({ userId, _id: chatId });
 
-    const userPrompt = {
+    if (!data) {
+      return NextResponse.json({
+        success: false,
+        message: "Chat not found",
+      });
+    }
+
+    const userMessage = {
       role: "user",
       content: prompt,
       timestamp: Date.now(),
     };
-
-    data.messages.push(userPrompt);
+    data.messages.push(userMessage);
 
     const client = ModelClient(endpoint, new AzureKeyCredential(token));
 
+    const messagesForModel = [
+      { role: "system", content: "You are a helpful assistant." },
+      ...data.messages.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      })),
+    ];
+
     const response = await client.path("/chat/completions").post({
       body: {
-        messages: [
-          { role: "system", content: "You are a helpful assistant." },
-          { role: "user", content: prompt }
-        ],
+        messages: messagesForModel,
         temperature: 1.0,
         top_p: 1.0,
-        model: model,
-      }
+        model: selectedModel,
+      },
     });
 
     if (isUnexpected(response)) {
       throw response.body.error;
     }
 
-    const message = {
+    const aiMessage = {
       role: response.body.choices[0].message.role,
       content: response.body.choices[0].message.content,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
-    data.messages.push(message);
+    data.messages.push(aiMessage);
     await data.save();
 
-    return NextResponse.json({ success: true, data: message });
-
+    return NextResponse.json({ success: true, data: aiMessage });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message });
   }

@@ -4,12 +4,12 @@ import React, { useState } from "react";
 import { useClerk, UserButton } from "@clerk/nextjs";
 import { useAppContext } from "@/context/AppContext";
 import ChatLabel from "./ChatLabel";
-import { useRouter } from "next/navigation"; // ✅ Added for navigation
+import { useRouter } from "next/navigation";
 
 const Sidebar = ({ expand, setExpand }) => {
-  const { user, chats, createNewChat } = useAppContext();
+  const { user, chats, createNewChat, selectedChats } = useAppContext();
   const [openMenu, setOpenMenu] = useState({ id: 0, open: false });
-  const router = useRouter(); // ✅ Router hook
+  const router = useRouter();
 
   return (
     <div
@@ -91,6 +91,7 @@ const Sidebar = ({ expand, setExpand }) => {
               setOpenMenu={setOpenMenu}
               name={chat.name}
               id={chat._id}
+              selected={chat._id === selectedChats?._id} // ✅ Highlight selected
             />
           ))}
         </div>
@@ -100,7 +101,7 @@ const Sidebar = ({ expand, setExpand }) => {
         <div
           className={`flex items-center cursor-pointer group relative ${
             expand
-              ? "gap-1 text-white/80 text-sm p-2.5 border border-primary rounded-lg hover:bg-white/10 cursor-pointer"
+              ? "gap-1 text-white/80 text-sm p-2.5 border border-primary rounded-lg hover:bg-white/10"
               : "h-10 w-10 mx-auto hover:bg-gray-500/30 rounded-lg"
           }`}
         >
@@ -134,10 +135,10 @@ const Sidebar = ({ expand, setExpand }) => {
 
         <div
           onClick={() => {
-            if (!user) router.push("/sign-in"); // ✅ Redirect to /sign-in if not signed in
+            if (!user) router.push("/sign-in");
           }}
           className={`flex items-center ${
-            expand ? "hover bg-white/10 rounded-lg" : "justify-center w-full"
+            expand ? "hover:bg-white/10 rounded-lg" : "justify-center w-full"
           } gap-3 text-white/60 text-sm p-2 mt-2 cursor-pointer`}
         >
           {user ? (
