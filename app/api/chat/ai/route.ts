@@ -1,13 +1,14 @@
-// app/api/chat/ai/route.ts (for App Router)
-import { NextRequest, NextResponse } from 'next/server';
-import { currentUser } from '@clerk/nextjs/server';
-import connectDB from '@/config/db';
-import Chat from '@/models/Chat';
-import ModelClient, { isUnexpected } from '@azure-rest/ai-inference';
-import { AzureKeyCredential } from '@azure/core-auth';
+// pages/api/chat/ai.ts (or wherever your API is)
 
-const endpoint = process.env.AZURE_INFERENCE_ENDPOINT || "https://models.inference.ai.azure.com";
-const apiKey = process.env.AZURE_INFERENCE_KEY; // More standard naming
+import connectDB from "@/config/db";
+import Chat from "@/models/Chat";
+import { getAuth } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
+import ModelClient, { isUnexpected } from "@azure-rest/ai-inference";
+import { AzureKeyCredential } from "@azure/core-auth";
+
+const token = process.env["GITHUB_TOKEN"];
+const endpoint = "https://models.github.ai/inference";
 
 // Optional: Allowed models whitelist
 const allowedModels = [
@@ -18,106 +19,72 @@ const allowedModels = [
   "mistral-ai/mistral-medium-2505",
 ];
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const user = await currentUser();
-    
-    if (!user) {
-      return NextResponse.json({
-        success: false,
-        message: "User not authenticated"
-      }, { status: 401 });
-    }
-
+    const { userId } = getAuth(req);
     const { chatId, prompt, model } = await req.json();
 
-    if (!prompt || !chatId) {
+    if (!userId) {
       return NextResponse.json({
         success: false,
-        message: "Missing required fields: prompt and chatId"
-      }, { status: 400 });
+        message: "User not authenticated",
+      });
     }
 
     // Validate model selection or fallback to default
     const selectedModel = allowedModels.includes(model) ? model : "openai/gpt-4.1";
 
     await connectDB();
-    
-    // Find and validate chat belongs to user
-    const data = await Chat.findOne({ 
-      _id: chatId,
-      userId: user.id 
-    });
+    const data = await Chat.findOne({ userId, _id: chatId });
 
     if (!data) {
       return NextResponse.json({
         success: false,
-        message: "Chat not found"
-      }, { status: 404 });
+        message: "Chat not found",
+      });
     }
 
-    // Add user message
     const userMessage = {
       role: "user",
       content: prompt,
-      timestamp: new Date(),
+      timestamp: Date.now(),
     };
     data.messages.push(userMessage);
-    await data.save(); // Save immediately to preserve user message
 
-    // Prepare messages for AI
+    const client = ModelClient(endpoint, new AzureKeyCredential(token));
+
     const messagesForModel = [
       { role: "system", content: "You are a helpful assistant." },
-      ...data.messages.map((msg: any) => ({
+      ...data.messages.map((msg) => ({
         role: msg.role,
         content: msg.content,
       })),
     ];
 
-    // Initialize AI client
-    if (!apiKey) {
-      throw new Error("AI inference API key not configured");
-    }
-
-    const client = ModelClient(endpoint, new AzureKeyCredential(apiKey));
-
-    // Get AI response
     const response = await client.path("/chat/completions").post({
       body: {
         messages: messagesForModel,
-        temperature: 0.7, // Lowered for more consistent responses
-        top_p: 0.9,
+        temperature: 1.0,
+        top_p: 1.0,
         model: selectedModel,
-        max_tokens: 1000,
       },
     });
 
     if (isUnexpected(response)) {
-      throw new Error(response.body?.error?.message || "AI request failed");
+      throw response.body.error;
     }
 
-    // Add AI response
     const aiMessage = {
-      role: response.body.choices[0].message?.role || "assistant",
-      content: response.body.choices[0].message?.content || "",
-      timestamp: new Date(),
+      role: response.body.choices[0].message.role,
+      content: response.body.choices[0].message.content,
+      timestamp: Date.now(),
     };
 
     data.messages.push(aiMessage);
     await data.save();
 
-    return NextResponse.json({ 
-      success: true, 
-      data: aiMessage 
-    });
-
+    return NextResponse.json({ success: true, data: aiMessage });
   } catch (error: any) {
-    console.error("Chat AI Error:", error);
-    
-    return NextResponse.json({ 
-      success: false, 
-      error: error.message || "Internal server error",
-      details: process.env.NODE_ENV === "development" ? error.stack : undefined
-    }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message });
   }
 }

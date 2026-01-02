@@ -20,7 +20,8 @@ const Messages = ({ role, content }: { role: string; content: string }) => {
     toast.success('Code copied to clipboard')
   }
 
-  const renderers = {
+  // Use 'components' (not 'renderers') for react-markdown v8+
+  const components = {
     code({ node, inline, className, children, ...props }: any) {
       const codeText = String(children).replace(/\n$/, '')
       if (inline) {
@@ -30,11 +31,10 @@ const Messages = ({ role, content }: { role: string; content: string }) => {
           </code>
         )
       }
+      // Block code: use <pre> as the wrapper and put button INSIDE
       return (
-        <div className="relative group my-4">
-          <pre className={className} {...props}>
-            <code>{children}</code>
-          </pre>
+        <pre className={`${className} relative group my-4`} {...props}>
+          <code>{children}</code>
           <button
             type="button"
             onClick={() => copyCode(codeText)}
@@ -42,7 +42,7 @@ const Messages = ({ role, content }: { role: string; content: string }) => {
           >
             Copy
           </button>
-        </div>
+        </pre>
       )
     },
   }
@@ -96,7 +96,7 @@ const Messages = ({ role, content }: { role: string; content: string }) => {
                 className="h-9 w-9 p-1 border border-white/15 rounded-full"
               />
               <div className="space-y-4 w-full overflow-scroll">
-                <Markdown components={renderers}>{content}</Markdown>
+                <Markdown components={components}>{content}</Markdown>
               </div>
             </>
           )}
